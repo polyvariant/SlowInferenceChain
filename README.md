@@ -7,6 +7,9 @@ Scalafix semantic rule that flags Scala 3 call sites which can trigger slow type
 - it only shows up through implicit / context evidence,
 - and the result is immediately chained on, including `for` generators.
 
+This rule is a workaround for the Scala 3 compiler issue
+[scala/scala3#18763](https://github.com/scala/scala3/issues/18763).
+
 ## Project layout
 
 - `rules/` — the rule implementation
