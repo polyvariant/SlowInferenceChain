@@ -22,6 +22,11 @@ import scalafix.v1._
 
 import scala.meta._
 
+final case class EnclosingScope(
+  typeParameters: List[SymbolInformation],
+  implicitParameters: List[SymbolInformation],
+)
+
 final case class SlowInferenceChainFinding(call: Tree, suggestion: String)
 
 class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
@@ -58,7 +63,7 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
   ): Option[SlowInferenceChainFinding] = invocationSymbol(tree)
     .flatMap(_.info)
     .filterNot(isIgnoredMethod)
-    .filter(isRiskyMethod)
+    .filter(info => isRiskyMethod(tree, info))
     .map(_ => SlowInferenceChainFinding(tree, suggestion(tree)))
 
   private def toPatch(finding: SlowInferenceChainFinding): Patch = Patch.lint(
@@ -114,17 +119,26 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
       case _                              => false
     }
 
-  private def isRiskyMethod(info: SymbolInformation): Boolean =
+  private def isRiskyMethod(
+    call: Tree,
+    info: SymbolInformation,
+  )(
+    implicit
+    doc: SemanticDocument
+  ): Boolean =
     info.signature match {
       case MethodSignature(typeParameters, parameterLists, returnType) =>
         typeParameters.exists { tparam =>
           val symbol = symbolKey(tparam.symbol)
+          val requiredImplicitEvidence =
+            implicitParameters(parameterLists).filter(parameterMentions(_, symbol))
 
           isHigherKindedTypeParameter(tparam) &&
           semanticTypeMentions(returnType, symbol) &&
           !usesTypeParameterAtTopLevel(returnType, symbol) &&
           !explicitParameters(parameterLists).exists(parameterMentions(_, symbol)) &&
-          implicitParameters(parameterLists).exists(parameterMentions(_, symbol))
+          requiredImplicitEvidence.nonEmpty &&
+          !hasMatchingEnclosingEvidence(call, symbol, requiredImplicitEvidence)
         }
       case _ => false
     }
@@ -157,6 +171,99 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
       case _                   => false
     }
 
+  private def hasMatchingEnclosingEvidence(
+    tree: Tree,
+    methodTypeParameter: String,
+    requiredImplicitEvidence: List[SymbolInformation],
+  )(
+    implicit
+    doc: SemanticDocument
+  ): Boolean =
+    enclosingScopes(tree).exists { scope =>
+      scope.typeParameters.exists { enclosingTypeParameter =>
+        val enclosingTypeParameterSymbol = symbolKey(enclosingTypeParameter.symbol)
+        val availableImplicitEvidence =
+          scope
+            .implicitParameters
+            .filter(parameterMentions(_, enclosingTypeParameterSymbol))
+            .flatMap(parameterType)
+
+        isHigherKindedTypeParameter(enclosingTypeParameter) &&
+        availableImplicitEvidence.nonEmpty &&
+        requiredImplicitEvidence
+          .flatMap(parameterType)
+          .forall { requiredType =>
+            availableImplicitEvidence.exists { availableType =>
+              haveEquivalentTypeShape(
+                requiredType,
+                methodTypeParameter,
+                availableType,
+                enclosingTypeParameterSymbol,
+              )
+            }
+          }
+      }
+    }
+
+  private def enclosingScopes(
+    tree: Tree
+  )(
+    implicit
+    doc: SemanticDocument
+  ): List[EnclosingScope] =
+    ancestorTrees(tree).flatMap(enclosingScopeForTree)
+
+  private def ancestorTrees(tree: Tree): List[Tree] = {
+    @annotation.tailrec
+    def loop(current: Option[Tree], acc: List[Tree]): List[Tree] =
+      current match {
+        case Some(parent) => loop(parent.parent, parent :: acc)
+        case None         => acc.reverse
+      }
+
+    loop(tree.parent, Nil)
+  }
+
+  private def enclosingScopeForTree(
+    tree: Tree
+  )(
+    implicit
+    doc: SemanticDocument
+  ): Option[EnclosingScope] =
+    tree match {
+      case _: Defn.Def | _: Decl.Def | _: Defn.Class | _: Defn.Trait =>
+        tree.symbol.info.flatMap(enclosingScopeForInfo)
+      case _ => None
+    }
+
+  private def enclosingScopeForInfo(info: SymbolInformation): Option[EnclosingScope] =
+    info.signature match {
+      case MethodSignature(typeParameters, parameterLists, _) =>
+        Some(EnclosingScope(typeParameters, implicitParameters(parameterLists)))
+      case ClassSignature(typeParameters, _, _, declarations) =>
+        Some(
+          EnclosingScope(
+            typeParameters,
+            declarations
+              .find(info => info.isConstructor && info.isPrimary)
+              .toList
+              .flatMap { ctorInfo =>
+                ctorInfo.signature match {
+                  case MethodSignature(_, parameterLists, _) => implicitParameters(parameterLists)
+                  case _                                     => Nil
+                }
+              },
+          )
+        )
+      case _ => None
+    }
+
+  private def parameterType(param: SymbolInformation): Option[SemanticType] =
+    param.signature match {
+      case ValueSignature(tpe) => Some(tpe)
+      case _                   => None
+    }
+
   private def semanticTypeMentions(
     tpe: SemanticType,
     symbol: String,
@@ -167,20 +274,18 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
     symbol: String,
   ): Boolean =
     peelTopLevelType(tpe) match {
-      case TypeRef(_, topLevelSymbol, _) =>
-        symbolKey(topLevelSymbol) == symbol
-      case _ =>
-        false
+      case TypeRef(_, topLevelSymbol, _) => symbolKey(topLevelSymbol) == symbol
+      case _                             => false
     }
 
   private def peelTopLevelType(tpe: SemanticType): SemanticType =
     tpe match {
-      case AnnotatedType(_, underlying)  => peelTopLevelType(underlying)
-      case ByNameType(underlying)        => peelTopLevelType(underlying)
-      case RepeatedType(underlying)      => peelTopLevelType(underlying)
-      case UniversalType(_, underlying)  => peelTopLevelType(underlying)
+      case AnnotatedType(_, underlying)   => peelTopLevelType(underlying)
+      case ByNameType(underlying)         => peelTopLevelType(underlying)
+      case RepeatedType(underlying)       => peelTopLevelType(underlying)
+      case UniversalType(_, underlying)   => peelTopLevelType(underlying)
       case ExistentialType(underlying, _) => peelTopLevelType(underlying)
-      case other                         => other
+      case other                          => other
     }
 
   private def containsSymbol(value: Any, symbol: String): Boolean =
@@ -201,6 +306,28 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
       case values: Iterable[_] => values.iterator.exists(containsSymbol(_, symbol))
       case value: Option[_]    => value.exists(containsSymbol(_, symbol))
       case _                   => false
+    }
+
+  private def haveEquivalentTypeShape(
+    left: SemanticType,
+    leftTypeParameter: String,
+    right: SemanticType,
+    rightTypeParameter: String,
+  ): Boolean =
+    typeShape(left, leftTypeParameter) == typeShape(right, rightTypeParameter)
+
+  private def typeShape(value: Any, typeParameter: String): String =
+    value match {
+      case sym: Symbol if symbolKey(sym) == typeParameter => "<type-parameter>"
+      case sym: Symbol                                    => s"Symbol(${symbolKey(sym)})"
+      case AnnotatedType(_, underlying) => s"Annotated(${typeShape(underlying, typeParameter)})"
+      case info: SymbolInformation      => s"Info(${typeShape(info.signature, typeParameter)})"
+      case value: Option[_]             => value.map(typeShape(_, typeParameter)).getOrElse("None")
+      case product: Product             =>
+        s"${product.productPrefix}(${product.productIterator.map(typeShape(_, typeParameter)).mkString(",")})"
+      case values: Iterable[_] =>
+        values.iterator.map(typeShape(_, typeParameter)).mkString("[", ",", "]")
+      case other => String.valueOf(other)
     }
 
   private def symbolKey(symbol: Symbol): String = symbol.value

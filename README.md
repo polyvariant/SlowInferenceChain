@@ -8,8 +8,36 @@ Scalafix semantic rule that flags Scala 3 call sites which can trigger slow type
 - it only shows up through implicit / context evidence,
 - and the result is immediately chained on, including `for` generators.
 
-This rule is a workaround for the Scala 3 compiler issue
-[scala/scala3#18763](https://github.com/scala/scala3/issues/18763).
+This rule is a workaround for the Scala 3 compiler issue [scala/scala3#18763](https://github.com/scala/scala3/issues/18763).
+
+## Setup
+
+Add the rule to your build:
+
+```scala
+ThisBuild / scalafixDependencies +=
+  "org.polyvariant" %% "slowinferencechain" % version
+```
+
+Then run Scalafix on your sources:
+
+```bash
+sbt "scalafix SlowInferenceChain"
+```
+
+or add it to your `.scalafix.conf`:
+
+```diff
+rules = [
+  DisableSyntax,
+  LeakingImplicitClassVal,
+  NoAutoTupling,
+  NoValInForComprehension,
+  RedundantSyntax,
++ SlowInferenceChain,
+]
+
+```
 
 ## Project layout
 
@@ -39,5 +67,6 @@ Negative cases:
 - no chaining after the call
 - type parameter appears in a non-implicit parameter
 - no implicit / given evidence for the type parameter
+- matching higher-kinded type parameter and corresponding implicit evidence already exist in an enclosing scope
 - return type does not depend on the inferred type parameter
 - return type is directly `F[...]`
