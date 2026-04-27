@@ -3,7 +3,7 @@ val Scala213 = "2.13.18"
 
 inThisBuild(
   List(
-    tlBaseVersion := "0.1",
+    tlBaseVersion := "1.0",
     organization := "org.polyvariant",
     organizationName := "Polyvariant",
     startYear := Some(2026),
