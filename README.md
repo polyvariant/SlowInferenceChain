@@ -16,7 +16,7 @@ Add the rule to your build:
 
 ```scala
 ThisBuild / scalafixDependencies +=
-  "org.polyvariant" %% "slowinferencechain" % version
+  "org.polyvariant" %% "SlowInferenceChain" % version
 ```
 
 Then run Scalafix on your sources:
