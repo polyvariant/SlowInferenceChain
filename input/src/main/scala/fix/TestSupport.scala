@@ -25,9 +25,17 @@ trait IO[A]
 trait Resource[F[_], A] {
   def flatMap[B](f: A => Resource[F, B]): Resource[F, B]
   def map[B](f: A => B): Resource[F, B]
-  def flatten[B](implicit ev: A <:< Resource[F, B]): Resource[F, B]
+
+  def flatten[B](
+    implicit ev: A <:< Resource[F, B]
+  ): Resource[F, B]
+
 }
 
 object Resource {
-  def unit[F[_]](implicit F: Sync[F]): Resource[F, Unit] = ???
+
+  def unit[F[_]](
+    implicit F: Sync[F]
+  ): Resource[F, Unit] = ???
+
 }

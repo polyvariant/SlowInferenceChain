@@ -24,11 +24,12 @@ object SlowInferenceChainLocalMethod {
 
   def demo = {
     def registerRuntimeTelemetry[F[_]: Sync](
-        a: Int
+      a: Int
     ): Resource[F, Unit] = ???
 
     Resource
       .unit[IO]
       .flatMap(_ => registerRuntimeTelemetry(???).flatMap(_ => Resource.unit[IO]))
   }
+
 }

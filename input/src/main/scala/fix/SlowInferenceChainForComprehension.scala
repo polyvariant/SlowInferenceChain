@@ -35,7 +35,7 @@ object SlowInferenceChainForComprehension {
   implicit val ioSync: Sync[IO] = ???
 
   private def registerRuntimeTelemetry[F[_]: Sync](
-      a: Int
+    a: Int
   ): Resource[F, Unit] = ???
 
   def demo =
@@ -43,4 +43,5 @@ object SlowInferenceChainForComprehension {
       otel <- OtelJava.global[IO].toResource
       _ <- registerRuntimeTelemetry(otel.underlying) // assert: SlowInferenceChain
     } yield ()
+
 }

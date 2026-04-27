@@ -23,11 +23,12 @@ object SlowInferenceChainConcreteParameter {
   implicit val ioSync: Sync[IO] = ???
 
   private def registerRuntimeTelemetry[F[_]: Sync](
-      a: F[Int]
+    a: F[Int]
   ): Resource[F, Unit] = ???
 
   def demo =
     Resource
       .unit[IO]
       .flatMap(_ => registerRuntimeTelemetry(???).flatMap(_ => Resource.unit[IO]))
+
 }

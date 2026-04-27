@@ -23,7 +23,7 @@ object SlowInferenceChainUnchained {
   implicit val ioSync: Sync[IO] = ???
 
   private def registerRuntimeTelemetry[F[_]: Sync](
-      a: Int
+    a: Int
   ): Resource[F, Unit] = ???
 
   def demo =

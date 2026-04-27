@@ -29,7 +29,7 @@ object SlowInferenceChainPlainTypeParameter {
   implicit val intEvidence: Evidence[Int] = ???
 
   private def registerRuntimeTelemetry[A: Evidence](
-      a: String
+    a: String
   ): Box[A] = ???
 
   def demo =

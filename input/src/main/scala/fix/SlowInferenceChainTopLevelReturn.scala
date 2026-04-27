@@ -32,11 +32,11 @@ object SlowInferenceChainTopLevelReturn {
   }
 
   private def registerRuntimeTelemetry[F[_]: Sync](
-      a: Int
+    a: Int
   ): F[Unit] = ???
 
   private def materializeResult[F[_]: Sync](
-      a: Int
+    a: Int
   ): F[Int] = ???
 
   def demo1 =

@@ -23,11 +23,12 @@ object SlowInferenceChainFlatten {
   implicit val ioSync: Sync[IO] = ???
 
   private def flatten[F[_]: Sync](
-      value: Int
+    value: Int
   ): Resource[F, Resource[F, Unit]] = ???
 
   def demo =
     Resource
       .unit[IO]
       .flatMap(_ => flatten(???).flatten)
+
 }

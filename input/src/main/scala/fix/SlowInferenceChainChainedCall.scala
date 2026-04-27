@@ -23,11 +23,14 @@ object SlowInferenceChainChainedCall {
   implicit val ioSync: Sync[IO] = ???
 
   private def registerRuntimeTelemetry[F[_]: Sync](
-      a: Int
+    a: Int
   ): Resource[F, Unit] = ???
 
   def demo =
     Resource
       .unit[IO]
-      .flatMap(_ => registerRuntimeTelemetry(???).flatMap(_ => Resource.unit[IO])) // assert: SlowInferenceChain
+      .flatMap(_ =>
+        registerRuntimeTelemetry(???).flatMap(_ => Resource.unit[IO]) // assert: SlowInferenceChain
+      )
+
 }

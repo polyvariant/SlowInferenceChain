@@ -20,12 +20,14 @@ rule = SlowInferenceChain
 package fix
 
 object SlowInferenceChainEnclosingEvidence {
+
   private def registerRuntimeTelemetry[F[_]: Sync](
-      a: Int
+    a: Int
   ): Resource[F, Unit] = ???
 
   def demo[F[_]: Sync] =
     Resource
       .unit[F]
       .flatMap(_ => registerRuntimeTelemetry(???).flatMap(_ => Resource.unit[F]))
+
 }
