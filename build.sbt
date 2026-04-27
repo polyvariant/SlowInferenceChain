@@ -8,7 +8,6 @@ inThisBuild(
     organizationName := "Polyvariant",
     startYear := Some(2026),
     scalaVersion := Scala213,
-    homepage := Some(url("https://github.com/polyvariant/SlowInferenceChain")),
     licenses := Seq(License.Apache2),
     developers := List(tlGitHubDev("kubukoz", "Jakub Kozłowski")),
     semanticdbEnabled := true,
