@@ -25,6 +25,7 @@ import scala.meta._
 final case class SlowInferenceChainFinding(call: Tree, suggestion: String)
 
 class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
+  private val ignoredMethodNames = Set("flatten")
 
   override def fix(
     implicit doc: SemanticDocument
@@ -56,6 +57,7 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
     doc: SemanticDocument
   ): Option[SlowInferenceChainFinding] = invocationSymbol(tree)
     .flatMap(_.info)
+    .filterNot(isIgnoredMethod)
     .filter(isRiskyMethod)
     .map(_ => SlowInferenceChainFinding(tree, suggestion(tree)))
 
@@ -116,14 +118,25 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
     info.signature match {
       case MethodSignature(typeParameters, parameterLists, returnType) =>
         typeParameters.exists { tparam =>
-          val symbol = tparam.symbol.normalized
+          val symbol = symbolKey(tparam.symbol)
 
+          isHigherKindedTypeParameter(tparam) &&
           semanticTypeMentions(returnType, symbol) &&
+          !usesTypeParameterAtTopLevel(returnType, symbol) &&
           !explicitParameters(parameterLists).exists(parameterMentions(_, symbol)) &&
           implicitParameters(parameterLists).exists(parameterMentions(_, symbol))
         }
       case _ => false
     }
+
+  private def isHigherKindedTypeParameter(info: SymbolInformation): Boolean =
+    info.signature match {
+      case TypeSignature(typeParameters, _, _) => typeParameters.nonEmpty
+      case _                                   => false
+    }
+
+  private def isIgnoredMethod(info: SymbolInformation): Boolean =
+    ignoredMethodNames.contains(info.displayName)
 
   private def explicitParameters(
     parameterLists: List[List[SymbolInformation]]
@@ -137,7 +150,7 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
 
   private def parameterMentions(
     param: SymbolInformation,
-    symbol: Symbol,
+    symbol: String,
   ): Boolean =
     param.signature match {
       case ValueSignature(tpe) => semanticTypeMentions(tpe, symbol)
@@ -146,12 +159,33 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
 
   private def semanticTypeMentions(
     tpe: SemanticType,
-    symbol: Symbol,
-  ): Boolean = containsSymbol(tpe, symbol.normalized)
+    symbol: String,
+  ): Boolean = containsSymbol(tpe, symbol)
 
-  private def containsSymbol(value: Any, symbol: Symbol): Boolean =
+  private def usesTypeParameterAtTopLevel(
+    tpe: SemanticType,
+    symbol: String,
+  ): Boolean =
+    peelTopLevelType(tpe) match {
+      case TypeRef(_, topLevelSymbol, _) =>
+        symbolKey(topLevelSymbol) == symbol
+      case _ =>
+        false
+    }
+
+  private def peelTopLevelType(tpe: SemanticType): SemanticType =
+    tpe match {
+      case AnnotatedType(_, underlying)  => peelTopLevelType(underlying)
+      case ByNameType(underlying)        => peelTopLevelType(underlying)
+      case RepeatedType(underlying)      => peelTopLevelType(underlying)
+      case UniversalType(_, underlying)  => peelTopLevelType(underlying)
+      case ExistentialType(underlying, _) => peelTopLevelType(underlying)
+      case other                         => other
+    }
+
+  private def containsSymbol(value: Any, symbol: String): Boolean =
     value match {
-      case sym: Symbol         => sym.normalized == symbol
+      case sym: Symbol         => symbolKey(sym) == symbol
       case ValueSignature(tpe) => containsSymbol(tpe, symbol)
       case MethodSignature(typeParameters, parameterLists, returnType) =>
         typeParameters.exists(containsSymbol(_, symbol)) ||
@@ -162,12 +196,14 @@ class SlowInferenceChain extends SemanticRule("SlowInferenceChain") {
         containsSymbol(lowerBound, symbol) ||
         containsSymbol(upperBound, symbol)
       case info: SymbolInformation =>
-        info.symbol.normalized == symbol || containsSymbol(info.signature, symbol)
+        symbolKey(info.symbol) == symbol || containsSymbol(info.signature, symbol)
       case tpe: SemanticType   => tpe.productIterator.exists(containsSymbol(_, symbol))
       case values: Iterable[_] => values.iterator.exists(containsSymbol(_, symbol))
       case value: Option[_]    => value.exists(containsSymbol(_, symbol))
       case _                   => false
     }
+
+  private def symbolKey(symbol: Symbol): String = symbol.value
 
   private def suggestion(tree: Tree): String =
     tree match {

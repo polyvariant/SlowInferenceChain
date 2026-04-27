@@ -19,15 +19,29 @@ rule = SlowInferenceChain
 
 package fix
 
-trait Sync[F[_]]
-trait IO[A]
+object SlowInferenceChainTopLevelReturn {
+  implicit val ioSync: Sync[IO] = ???
 
-trait Resource[F[_], A] {
-  def flatMap[B](f: A => Resource[F, B]): Resource[F, B]
-  def map[B](f: A => B): Resource[F, B]
-  def flatten[B](implicit ev: A <:< Resource[F, B]): Resource[F, B]
-}
+  object IO {
+    def pure[A](a: A): fix.IO[A] = ???
+  }
 
-object Resource {
-  def unit[F[_]](implicit F: Sync[F]): Resource[F, Unit] = ???
+  implicit final class IOOps[A](private val fa: fix.IO[A]) extends AnyVal {
+    def flatMap[B](f: A => fix.IO[B]): fix.IO[B] = ???
+    def map[B](f: A => B): fix.IO[B] = ???
+  }
+
+  private def registerRuntimeTelemetry[F[_]: Sync](
+      a: Int
+  ): F[Unit] = ???
+
+  private def materializeResult[F[_]: Sync](
+      a: Int
+  ): F[Int] = ???
+
+  def demo1 =
+    registerRuntimeTelemetry(???).flatMap(_ => IO.pure(()))
+
+  def demo2 =
+    materializeResult(???).map(x => x)
 }

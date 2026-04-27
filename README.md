@@ -3,7 +3,8 @@
 Scalafix semantic rule that flags Scala 3 call sites which can trigger slow type inference when:
 
 - a method omits a type argument,
-- that type argument affects the result type,
+- that type argument is higher-kinded (for example `F[_]`),
+- that type argument affects the result type, but not as the top-level result constructor itself (for example `Resource[F, Unit]` is checked, `F[Int]` is not),
 - it only shows up through implicit / context evidence,
 - and the result is immediately chained on, including `for` generators.
 
@@ -34,7 +35,9 @@ Positive cases:
 Negative cases:
 
 - explicit type argument already present
+- plain type parameter rather than a higher-kinded one
 - no chaining after the call
 - type parameter appears in a non-implicit parameter
 - no implicit / given evidence for the type parameter
 - return type does not depend on the inferred type parameter
+- return type is directly `F[...]`

@@ -19,15 +19,15 @@ rule = SlowInferenceChain
 
 package fix
 
-trait Sync[F[_]]
-trait IO[A]
+object SlowInferenceChainFlatten {
+  implicit val ioSync: Sync[IO] = ???
 
-trait Resource[F[_], A] {
-  def flatMap[B](f: A => Resource[F, B]): Resource[F, B]
-  def map[B](f: A => B): Resource[F, B]
-  def flatten[B](implicit ev: A <:< Resource[F, B]): Resource[F, B]
-}
+  private def flatten[F[_]: Sync](
+      value: Int
+  ): Resource[F, Resource[F, Unit]] = ???
 
-object Resource {
-  def unit[F[_]](implicit F: Sync[F]): Resource[F, Unit] = ???
+  def demo =
+    Resource
+      .unit[IO]
+      .flatMap(_ => flatten(???).flatten)
 }

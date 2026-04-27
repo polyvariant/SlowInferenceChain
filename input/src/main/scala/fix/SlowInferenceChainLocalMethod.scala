@@ -19,15 +19,16 @@ rule = SlowInferenceChain
 
 package fix
 
-trait Sync[F[_]]
-trait IO[A]
+object SlowInferenceChainLocalMethod {
+  implicit val ioSync: Sync[IO] = ???
 
-trait Resource[F[_], A] {
-  def flatMap[B](f: A => Resource[F, B]): Resource[F, B]
-  def map[B](f: A => B): Resource[F, B]
-  def flatten[B](implicit ev: A <:< Resource[F, B]): Resource[F, B]
-}
+  def demo = {
+    def registerRuntimeTelemetry[F[_]: Sync](
+        a: Int
+    ): Resource[F, Unit] = ???
 
-object Resource {
-  def unit[F[_]](implicit F: Sync[F]): Resource[F, Unit] = ???
+    Resource
+      .unit[IO]
+      .flatMap(_ => registerRuntimeTelemetry(???).flatMap(_ => Resource.unit[IO]))
+  }
 }
