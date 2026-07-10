@@ -53,6 +53,10 @@ sbt rules/compile
 sbt tests/test
 ```
 
+Working on the rule itself? See [DEVELOPMENT.md](./DEVELOPMENT.md), which
+includes how to profile the typer phase to confirm whether a flagged call site
+actually compiles slowly.
+
 ## Current fixture coverage
 
 Positive cases:
